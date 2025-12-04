@@ -802,7 +802,7 @@ class AgentCoder(Coder):
             if repetitive_tools:
                 tool_context = self._generate_tool_context(repetitive_tools)
                 if tool_context:
-                    pre_dynamic_blocks.append(tool_context)
+                    post_dynamic_blocks.append(tool_context)
 
         if pre_dynamic_blocks:
             dynamic_message = "\n\n".join(pre_dynamic_blocks)
@@ -1717,7 +1717,7 @@ class AgentCoder(Coder):
         history_len = len(self.tool_usage_history)
 
         # Not enough history to detect a pattern
-        if history_len < 2:
+        if history_len < 5:
             return set()
 
         # Check for similarity-based repetition
@@ -1741,12 +1741,12 @@ class AgentCoder(Coder):
         if all(tool.lower() in self.read_tools for tool in all_tools):
             return set(all_tools)
 
-        # Check for any read tool used more than once across rounds
+        # Check for any read tool used more than 5 times across rounds
         tool_counts = Counter(all_tools)
         count_repetitive_tools = {
             tool
             for tool, count in tool_counts.items()
-            if count >= 2 and tool.lower() in self.read_tools
+            if count >= 5 and tool.lower() in self.read_tools
         }
 
         # Combine both detection methods
