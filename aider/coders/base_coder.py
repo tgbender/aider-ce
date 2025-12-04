@@ -2819,6 +2819,9 @@ class Coder:
         elif self.partial_response_function_call:
             msg["function_call"] = self.partial_response_function_call
 
+        if "reasoning_content" not in msg:
+            msg["reasoning_content"] = self.partial_response_reasoning_content
+
         # Only add a message if it's not empty.
         if msg is not None:
             self.cur_messages.append(msg)

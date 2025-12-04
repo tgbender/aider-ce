@@ -1,6 +1,37 @@
 from ..sendchat import ensure_alternating_roles
 
 
+def add_reasoning_content(messages):
+    """Add empty reasoning content field to assistant messages if not present.
+
+    Args:
+        messages: List of message dictionaries
+
+    Returns:
+        List of messages with reasoning content added to assistant messages
+    """
+    for msg in messages:
+        if msg.get("role") == "assistant" and "reasoning_content" not in msg:
+            msg["reasoning_content"] = ""
+    return messages
+
+
+def remove_empty_tool_calls(messages):
+    """Remove messages with tool_calls that are empty arrays.
+
+    Args:
+        messages: List of message dictionaries
+
+    Returns:
+        List of messages with empty tool_calls messages removed
+    """
+    return [
+        msg
+        for msg in messages
+        if not (msg.get("role") == "assistant" and "tool_calls" in msg and msg["tool_calls"] == [])
+    ]
+
+
 def thought_signature(model, messages):
     # Add thought signatures for Vertex AI and Gemini models
     if model.name.startswith("vertex_ai/") or model.name.startswith("gemini/"):
@@ -40,6 +71,7 @@ def thought_signature(model, messages):
 
 def model_request_parser(model, messages):
     messages = thought_signature(model, messages)
+    messages = remove_empty_tool_calls(messages)
     messages = ensure_alternating_roles(messages)
-
+    messages = add_reasoning_content(messages)
     return messages
