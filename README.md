@@ -1,27 +1,32 @@
 ## Why `aider-ce`?
 
-`aider-ce` (aka `cecli`) is a community-driven fork of the excellent [Aider](https://aider.chat/) AI pair programming tool.
+`aider-ce` (aka `cecli`, pronounced like "Cecily") is a community-driven fork of the [Aider](https://aider.chat/) AI pair programming tool.
+Aider is a fantastic piece of software with a wonderful community but it has been painfully slow in receiving updates in the quickly evolving AI tooling space.
 
-Our mission is to foster an open, collaborative ecosystem where new features, experiments, and improvements can be developed and shared rapidly. We believe in genuine FOSS principles and actively welcome contributors of all skill levels.
+We aim to foster an open, collaborative ecosystem where new features, experiments, and improvements can be developed and shared rapidly. We believe in genuine FOSS principles and actively welcome contributors of all skill levels.
 
-If you are looking for bleeding-edge features or want to get your hands dirty with the internals of an AI coding agent, join us!
+If you are looking for bleeding-edge features or want to get your hands dirty with the internals of an AI coding agent, here's your sign.
+LLMs are a part of our lives from here on out so join us in learning about and crafting the future.
 
-You can see a selection of the improvements by comparing the help output:
-```bash
-aider --help > aider.help.txt
-cecli --help > cecli.help.txt
-diff aider.help.txt cecli.help.txt -uw --color
-```
-Some of the bigger enhancements are:
+### Links
+
+[Discord Chat](https://discord.gg/McwdCRuqkJ) 🞄
+[Changelog](https://github.com/dwash96/aider-ce/blob/main/CHANGELOG.md) 🞄
+[Issue Queue](https://github.com/dwash96/aider-ce/issues)
+
+## Documentation/Other Notes:
 
 * [Agent Mode](https://github.com/dwash96/aider-ce/blob/main/aider/website/docs/config/agent-mode.md)
 * [MCP Configuration](https://github.com/dwash96/aider-ce/blob/main/aider/website/docs/config/mcp.md)
 * [Session Management](https://github.com/dwash96/aider-ce/blob/main/aider/website/docs/sessions.md)
 * [Aider Original Documentation (still mostly applies)](https://aider.chat/)
 
-For a full list, check out the [Changelog](https://github.com/dwash96/aider-ce/blob/main/CHANGELOG.md)
-Please drop by the [Discord Community](https://discord.gg/McwdCRuqkJ)
-or [issue queue](https://github.com/dwash96/aider-ce/issues) to get involved.
+You can see a selection of the enhancements and updates by comparing the help output:
+```bash
+aider --help > aider.help.txt
+cecli --help > cecli.help.txt
+diff aider.help.txt cecli.help.txt -uw --color
+```
 
 ## Installation Instructions
 This project can be installed using several methods:
@@ -145,6 +150,7 @@ The current priorities are to improve core capabilities and user experience of t
 <a href="https://github.com/shladnik">@shladnik</a>
 <a href="https://github.com/itlackey">@itlackey</a>
 <a href="https://github.com/tomjuggler">@tomjuggler</a>
+<a href="https://github.com/szmania">@szmania</a>
 <a href="https://github.com/vk4s">@vk4s</a>
 <a href="https://github.com/titusz">@titusz</a>
 <a href="https://github.com/daniel-vainsencher">@daniel-vainsencher</a>
@@ -160,6 +166,6 @@ The current priorities are to improve core capabilities and user experience of t
 <a href="https://github.com/itsmeknt">@itsmeknt</a>
 <a href="https://github.com/cheahjs">@cheahjs</a>
 <a href="https://github.com/youknow04">@youknow04</a>
+<a href="https://github.com/pjcreath">@pjcreath</a>
 <a href="https://github.com/pcamp">@pcamp</a>
-<a href="https://github.com/miradnanali">@miradnanali</a>
-<a href="https://github.com/o-nix">@o-nix</a>
+<a href="https://github.com/ErichBSchulz">@ErichBSchulz</a>
