@@ -35,7 +35,6 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
 
 from aider import __version__, models, prompts, urls, utils
-from aider.analytics import Analytics
 from aider.commands import Commands, SwitchCoder
 from aider.exceptions import LiteLLMExceptions
 from aider.helpers import coroutines
@@ -365,7 +364,6 @@ class Coder:
         commands=None,
         summarizer=None,
         total_cost=0.0,
-        analytics=None,
         map_refresh="auto",
         cache_prompts=False,
         num_cache_warming_pings=0,
@@ -391,10 +389,6 @@ class Coder:
         # initialize from args.map_cache_dir
         self.map_cache_dir = map_cache_dir
 
-        # Fill in a dummy Analytics if needed, but it is never .enable()'d
-        self.analytics = analytics if analytics is not None else Analytics()
-
-        self.event = self.analytics.event
         self.chat_language = chat_language
         self.commit_language = commit_language
         self.commit_before_message = []
@@ -2135,8 +2129,6 @@ class Coder:
         return True
 
     async def send_message(self, inp):
-        self.event("message_send_starting")
-
         # Notify IO that LLM processing is starting
         self.io.llm_started()
 
@@ -2234,7 +2226,6 @@ class Coder:
                     lines = traceback.format_exception(type(err), err, err.__traceback__)
                     self.io.tool_warning("".join(lines))
                     self.io.tool_error(str(err))
-                    self.event("message_send_exception", exception=str(err))
                     return
         finally:
             if self.mdstream:
@@ -3391,19 +3382,6 @@ class Coder:
 
         self.io.tool_output(self.usage_report)
         self.io.rule()
-
-        prompt_tokens = self.message_tokens_sent
-        completion_tokens = self.message_tokens_received
-        self.event(
-            "message_send",
-            main_model=self.main_model,
-            edit_format=self.edit_format,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-            cost=self.message_cost,
-            total_cost=self.total_cost,
-        )
 
         self.message_cost = 0.0
         self.message_tokens_sent = 0
