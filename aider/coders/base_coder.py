@@ -150,6 +150,8 @@ class Coder:
         25000  # Files larger than this will be truncated when context management is enabled
     )
 
+    ok_to_warm_cache = False
+
     @classmethod
     async def create(
         self,
@@ -238,100 +240,6 @@ class Coder:
     async def clone(self, **kwargs):
         new_coder = await Coder.create(from_coder=self, **kwargs)
         return new_coder
-
-    def get_announcements(self):
-        lines = []
-        lines.append(f"Aider-CE v{__version__}")
-
-        # Model
-        main_model = self.main_model
-        weak_model = main_model.weak_model
-
-        if weak_model is not main_model:
-            prefix = "Main model"
-        else:
-            prefix = "Model"
-
-        output = f"{prefix}: {main_model.name} with {self.edit_format} edit format"
-
-        # Check for thinking token budget
-        thinking_tokens = main_model.get_thinking_tokens()
-        if thinking_tokens:
-            output += f", {thinking_tokens} think tokens"
-
-        # Check for reasoning effort
-        reasoning_effort = main_model.get_reasoning_effort()
-        if reasoning_effort:
-            output += f", reasoning {reasoning_effort}"
-
-        if self.add_cache_headers or main_model.caches_by_default:
-            output += ", prompt cache"
-        if main_model.info.get("supports_assistant_prefill"):
-            output += ", infinite output"
-
-        lines.append(output)
-
-        if self.edit_format == "architect":
-            output = (
-                f"Editor model: {main_model.editor_model.name} with"
-                f" {main_model.editor_edit_format} edit format"
-            )
-            lines.append(output)
-
-        if weak_model is not main_model:
-            output = f"Weak model: {weak_model.name}"
-            lines.append(output)
-
-        # Repo
-        if self.repo:
-            rel_repo_dir = self.repo.get_rel_repo_dir()
-            num_files = len(self.repo.get_tracked_files())
-
-            lines.append(f"Git repo: {rel_repo_dir} with {num_files:,} files")
-            if num_files > 1000:
-                lines.append(
-                    "Warning: For large repos, consider using --subtree-only and .aiderignore"
-                )
-                lines.append(f"See: {urls.large_repos}")
-        else:
-            lines.append("Git repo: none")
-
-        # Repo-map
-        if self.repo_map:
-            map_tokens = self.repo_map.max_map_tokens
-            if map_tokens > 0:
-                refresh = self.repo_map.refresh
-                lines.append(f"Repo-map: using {map_tokens} tokens, {refresh} refresh")
-                max_map_tokens = self.main_model.get_repo_map_tokens() * 2
-                if map_tokens > max_map_tokens:
-                    lines.append(
-                        f"Warning: map-tokens > {max_map_tokens} is not recommended. Too much"
-                        " irrelevant code can confuse LLMs."
-                    )
-            else:
-                lines.append("Repo-map: disabled because map_tokens == 0")
-        else:
-            lines.append("Repo-map: disabled")
-
-        if self.mcp_tools:
-            mcp_servers = []
-            for server_name, server_tools in self.mcp_tools:
-                mcp_servers.append(server_name)
-            lines.append(f"MCP servers configured: {', '.join(mcp_servers)}")
-
-        for fname in self.abs_read_only_stubs_fnames:
-            rel_fname = self.get_rel_fname(fname)
-            lines.append(f"Added {rel_fname} to the chat (read-only stub).")
-
-        if self.done_messages:
-            lines.append("Restored previous conversation history.")
-
-        if self.io.multiline_mode:
-            lines.append("Multiline mode: Enabled. Enter inserts newline, Alt-Enter submits text")
-
-        return lines
-
-    ok_to_warm_cache = False
 
     def __init__(
         self,
@@ -633,17 +541,109 @@ class Coder:
                 self.io.tool_output("JSON Schema:")
                 self.io.tool_output(json.dumps(self.functions, indent=4))
 
-    def setup_lint_cmds(self, lint_cmds):
-        if not lint_cmds:
-            return
-        for lang, cmd in lint_cmds.items():
-            self.linter.set_linter(lang, cmd)
+    def get_announcements(self):
+        lines = []
+        lines.append(f"Aider-CE v{__version__}")
+
+        # Model
+        main_model = self.main_model
+        weak_model = main_model.weak_model
+
+        if weak_model is not main_model:
+            prefix = "Main model"
+        else:
+            prefix = "Model"
+
+        output = f"{prefix}: {main_model.name} with {self.edit_format} edit format"
+
+        # Check for thinking token budget
+        thinking_tokens = main_model.get_thinking_tokens()
+        if thinking_tokens:
+            output += f", {thinking_tokens} think tokens"
+
+        # Check for reasoning effort
+        reasoning_effort = main_model.get_reasoning_effort()
+        if reasoning_effort:
+            output += f", reasoning {reasoning_effort}"
+
+        if self.add_cache_headers or main_model.caches_by_default:
+            output += ", prompt cache"
+        if main_model.info.get("supports_assistant_prefill"):
+            output += ", infinite output"
+
+        lines.append(output)
+
+        if self.edit_format == "architect":
+            output = (
+                f"Editor model: {main_model.editor_model.name} with"
+                f" {main_model.editor_edit_format} edit format"
+            )
+            lines.append(output)
+
+        if weak_model is not main_model:
+            output = f"Weak model: {weak_model.name}"
+            lines.append(output)
+
+        # Repo
+        if self.repo:
+            rel_repo_dir = self.repo.get_rel_repo_dir()
+            num_files = len(self.repo.get_tracked_files())
+
+            lines.append(f"Git repo: {rel_repo_dir} with {num_files:,} files")
+            if num_files > 1000:
+                lines.append(
+                    "Warning: For large repos, consider using --subtree-only and .aiderignore"
+                )
+                lines.append(f"See: {urls.large_repos}")
+        else:
+            lines.append("Git repo: none")
+
+        # Repo-map
+        if self.repo_map:
+            map_tokens = self.repo_map.max_map_tokens
+            if map_tokens > 0:
+                refresh = self.repo_map.refresh
+                lines.append(f"Repo-map: using {map_tokens} tokens, {refresh} refresh")
+                max_map_tokens = self.main_model.get_repo_map_tokens() * 2
+                if map_tokens > max_map_tokens:
+                    lines.append(
+                        f"Warning: map-tokens > {max_map_tokens} is not recommended. Too much"
+                        " irrelevant code can confuse LLMs."
+                    )
+            else:
+                lines.append("Repo-map: disabled because map_tokens == 0")
+        else:
+            lines.append("Repo-map: disabled")
+
+        if self.mcp_tools:
+            mcp_servers = []
+            for server_name, server_tools in self.mcp_tools:
+                mcp_servers.append(server_name)
+            lines.append(f"MCP servers configured: {', '.join(mcp_servers)}")
+
+        for fname in self.abs_read_only_stubs_fnames:
+            rel_fname = self.get_rel_fname(fname)
+            lines.append(f"Added {rel_fname} to the chat (read-only stub).")
+
+        if self.done_messages:
+            lines.append("Restored previous conversation history.")
+
+        if self.io.multiline_mode:
+            lines.append("Multiline mode: Enabled. Enter inserts newline, Alt-Enter submits text")
+
+        return lines
 
     def show_announcements(self):
         bold = True
         for line in self.get_announcements():
             self.io.tool_output(line, bold=bold)
             bold = False
+
+    def setup_lint_cmds(self, lint_cmds):
+        if not lint_cmds:
+            return
+        for lang, cmd in lint_cmds.items():
+            self.linter.set_linter(lang, cmd)
 
     def add_rel_fname(self, rel_fname):
         self.abs_fnames.add(self.abs_root_path(rel_fname))

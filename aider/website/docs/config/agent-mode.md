@@ -46,6 +46,7 @@ Agent Mode uses a centralized local tool registry that manages all available too
 - **Context Management Tools**: `MakeEditable`, `MakeReadonly`, `Remove`
 - **Git Tools**: `GitDiff`, `GitLog`, `GitShow`, `GitStatus`
 - **Utility Tools**: `UpdateTodoList`, `ListChanges`, `UndoChange`, `Finished`
+- **Skill Management**: `LoadSkill`, `RemoveSkill`
 
 #### Enhanced Context Management
 
@@ -175,6 +176,7 @@ The following context blocks are available by default and can be customized usin
 - **`git_status`**: Shows current git branch, status, and recent commits
 - **`symbol_outline`**: Lists classes, functions, and methods in current context
 - **`todo_list`**: Shows the current todo list managed via `UpdateTodoList` tool
+- **`skills`**: Include skills content in the conversation
 
 When `include_context_blocks` is specified, only the listed blocks will be included. When `exclude_context_blocks` is specified, the listed blocks will be removed from the default set.
 
@@ -189,32 +191,47 @@ use-enhanced-map: true
 ```
 
 
-#### Usage Examples
+#### Configuration Example
 
-```bash
-# Only allow specific tools
-aider-ce --agent --agent-config '{"tools_includelist": ["view", "makeeditable", "replacetext", "finished"]}'
+Complete configuration example in YAML configuration file (`.aider.conf.yml` or `~/.aider.conf.yml`):
 
-# Exclude specific tools
-aider-ce --agent --agent-config '{"tools_excludelist": ["command", "commandinteractive"]}'
+```yaml
+# Enable Agent Mode
+agent: true
 
-# Custom large file threshold
-aider-ce --agent --agent-config '{"large_file_token_threshold": 10000}'
+# Agent Mode configuration
+agent-config: |
+  {
+    # Tool configuration
+    "tools_includelist": ["view", "makeeditable", "replacetext", "finished"],  # Optional: Whitelist of tools
+    "tools_excludelist": ["command", "commandinteractive"],  # Optional: Blacklist of tools
+    
+    # Context blocks configuration
+    "include_context_blocks": ["todo_list", "git_status"],  # Optional: Context blocks to include
+    "exclude_context_blocks": ["symbol_outline", "directory_structure"],  # Optional: Context blocks to exclude
+    
+    # Performance and behavior settings
+    "large_file_token_threshold": 12500,  # Token threshold for large file warnings
+    "skip_cli_confirmations": false,  # YOLO mode - be brave and let the LLM cook
+    
+    # Skills configuration (see Skills documentation for details)
+    "skills_paths": ["~/my-skills", "./project-skills"],  # Directories to search for skills
+    "skills_includelist": ["python-refactoring", "react-components"],  # Optional: Whitelist of skills to include
+    "skills_excludelist": ["legacy-tools"]  # Optional: Blacklist of skills to exclude
+  }
 
-# Custom context blocks configuration
-aider-ce --agent --agent-config '{"include_context_blocks": ["directory_structure", "git_status"]}'
-
-# Exclude specific context blocks
-aider-ce --agent --agent-config '{"exclude_context_blocks": ["symbol_outline", "todo_list"]}'
-
-# Combined configuration
-aider-ce --agent --agent-config '{"large_file_token_threshold": 10000, "tools_includelist": ["view", "makeeditable", "replacetext", "finished", "gitdiff"], "include_context_blocks": ["directory_structure", "git_status"]}'
-
-# Command Line Options
-aider-ce --agent --agent-config '{"large_file_token_threshold": 10000, "tools_includelist": ["view", "makeeditable", "replacetext", "finished", "gitdiff"]}' --preserve-todo-list --use-enhanced-map
+# Other Agent Mode options
+preserve-todo-list: true  # Preserve todo list across sessions
+use-enhanced-map: true  # Use enhanced repo map with import relationships
 ```
 
 This configuration system allows for fine-grained control over which tools are available in Agent Mode, enabling security-conscious deployments and specialized workflows while maintaining essential functionality.
+
+### Skills
+
+Agent Mode includes a powerful skills system that allows you to extend the AI's capabilities with custom instructions, reference materials, scripts, and assets. Skills are configured through the `agent-config` parameter in the YAML configuration file.
+
+For complete documentation on creating and using skills, including skill directory structure, SKILL.md format, and best practices, see the [Skills documentation](https://github.com/dwash96/aider-ce/blob/main/aider/website/docs/config/skills.md).
 
 ### Benefits
 

@@ -29,6 +29,7 @@ from aider.commands import Commands, SwitchCoder
 from aider.copypaste import ClipboardWatcher
 from aider.deprecated import handle_deprecated_model_args
 from aider.format_settings import format_settings, scrub_sensitive_info
+from aider.helpers.file_searcher import generate_search_path_list
 from aider.history import ChatSummary
 from aider.io import InputOutput
 from aider.llm import litellm  # noqa: F401; properly init litellm on launch
@@ -236,36 +237,6 @@ def parse_lint_cmds(lint_cmds, io):
     if err:
         return
     return res
-
-
-def generate_search_path_list(default_file, git_root, command_line_file):
-    files = []
-    files.append(Path.home() / default_file)  # homedir
-    if git_root:
-        files.append(Path(git_root) / default_file)  # git root
-    files.append(default_file)
-    if command_line_file:
-        files.append(command_line_file)
-
-    resolved_files = []
-    for fn in files:
-        try:
-            resolved_files.append(Path(fn).expanduser().resolve())
-        except OSError:
-            pass
-
-    files = resolved_files
-    files.reverse()
-    uniq = []
-    for fn in files:
-        if fn not in uniq:
-            uniq.append(fn)
-    uniq.reverse()
-    files = uniq
-    files = list(map(str, files))
-    files = list(dict.fromkeys(files))
-
-    return files
 
 
 def register_models(git_root, model_settings_fname, io, verbose=False):

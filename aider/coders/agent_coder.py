@@ -27,6 +27,9 @@ from aider.helpers.similarity import (
     create_bigram_vector,
     normalize_vector,
 )
+
+# Import skills helper for skills
+from aider.helpers.skills import SkillsManager
 from aider.mcp.server import LocalServer
 from aider.repo import ANY_GIT_ERROR
 
@@ -50,10 +53,12 @@ from aider.tools import (
     indent_lines,
     insert_block,
     list_changes,
+    load_skill,
     ls,
     make_editable,
     make_readonly,
     remove,
+    remove_skill,
     replace_all,
     replace_line,
     replace_lines,
@@ -126,6 +131,8 @@ class AgentCoder(Coder):
 
         # Enable context management by default only in agent mode
         self.context_management_enabled = True  # Enabled by default for agent mode
+        # Skills configuration
+        self.skills_manager = None  # Will be initialized later
 
         # Initialize change tracker for granular editing
         self.change_tracker = ChangeTracker()
@@ -193,10 +200,12 @@ class AgentCoder(Coder):
             indent_lines,
             insert_block,
             list_changes,
+            load_skill,
             ls,
             make_editable,
             make_readonly,
             remove,
+            remove_skill,
             replace_all,
             replace_line,
             replace_lines,
@@ -218,6 +227,10 @@ class AgentCoder(Coder):
         tools_excludelist = agent_config.get(
             "tools_excludelist", agent_config.get("tools_blacklist", [])
         )
+
+        if "skills" not in self.allowed_context_blocks or not agent_config.get("skills_paths"):
+            tools_excludelist.append("loadskill")
+            tools_excludelist.append("removeskill")
 
         # Always include essential tools regardless of includelist/excludelist
         essential_tools = {"makeeditable", "replacetext", "view", "finished"}
@@ -286,6 +299,7 @@ class AgentCoder(Coder):
                 "git_status",
                 "symbol_outline",
                 "todo_list",
+                "skills",
             }
 
         if "exclude_context_blocks" in config:
@@ -301,7 +315,50 @@ class AgentCoder(Coder):
             "skip_cli_confirmations", config.get("yolo", False)
         )
 
+        if "skills" in self.allowed_context_blocks:
+            # Skills configuration
+            if "skills_paths" not in config:
+                config["skills_paths"] = []
+            if "skills_includelist" not in config:
+                config["skills_includelist"] = []
+            if "skills_excludelist" not in config:
+                config["skills_excludelist"] = []
+
+            self._initialize_skills_manager(config)
+
         return config
+
+    def _initialize_skills_manager(self, config):
+        """
+        Initialize the skills manager with the configured directory paths and filters.
+        """
+        if not config.get("skills_paths", []):
+            return
+
+        try:
+            git_root = str(self.repo.root) if self.repo else None
+            self.skills_manager = SkillsManager(
+                directory_paths=config.get("skills_paths", []),
+                include_list=config.get("skills_includelist", []),
+                exclude_list=config.get("skills_excludelist", []),
+                git_root=git_root,
+                coder=self,  # Pass reference to the coder instance
+            )
+
+        except Exception as e:
+            self.io.tool_warning(f"Failed to initialize skills manager: {str(e)}")
+
+    def show_announcements(self):
+        super().show_announcements()
+
+        # Find and log available skills
+        skills = self.skills_manager.find_skills()
+        if skills:
+            skills_list = []
+            for skill in skills:
+                skills_list.append(skill.name)
+
+            self.io.tool_output(f"Available Skills: {", ".join(skills_list)}")
 
     def get_local_tool_schemas(self):
         """Returns the JSON schemas for all local tools using the tool registry."""
@@ -503,6 +560,8 @@ class AgentCoder(Coder):
                 "directory_structure",
                 "git_status",
                 "symbol_outline",
+                "skills",
+                "loaded_skills",
             ]
 
             for block_type in block_types:
@@ -539,6 +598,10 @@ class AgentCoder(Coder):
             content = self.get_context_summary()
         elif block_name == "todo_list":
             content = self.get_todo_list()
+        elif block_name == "skills":
+            content = self.get_skills_context()
+        elif block_name == "loaded_skills":
+            content = self.get_skills_content()
 
         # Cache the result if it's not None
         if content is not None:
@@ -697,13 +760,16 @@ class AgentCoder(Coder):
         chunks = ChatChunks(
             chunk_ordering=[
                 "system",
+                "static",
                 "examples",
                 "readonly_files",
                 "repo",
                 "chat_files",
+                "pre_message",
                 "done",
                 "edit_files",
                 "cur",
+                "post_message",
                 "reminder",
             ]
         )
@@ -760,59 +826,75 @@ class AgentCoder(Coder):
         # This also populates the context block cache
         self._calculate_context_block_tokens()
 
-        # Get blocks from cache to avoid regenerating them
-        env_context = self.get_cached_context_block("environment_info")
-        dir_structure = self.get_cached_context_block("directory_structure")
-        git_status = self.get_cached_context_block("git_status")
-        symbol_outline = self.get_cached_context_block("symbol_outline")
-        todo_list = self.get_cached_context_block("todo_list")
-
-        # Context summary needs special handling because it depends on other blocks
-        context_summary = self.get_context_summary()
+        # Initialize chunk sections
+        chunks.static = []
+        chunks.pre_message = []
+        chunks.post_message = []
 
         # 1. Add relatively static blocks BEFORE done_messages
         # These blocks change less frequently and can be part of the cacheable prefix
         static_blocks = []
-        if env_context and "environment_info" in self.allowed_context_blocks:
-            static_blocks.append(env_context)
-        if dir_structure and "directory_structure" in self.allowed_context_blocks:
-            static_blocks.append(dir_structure)
-
-        if static_blocks:
-            static_message = "\n\n".join(static_blocks)
-            # Insert as a system message right before done_messages
-            chunks.system.append(dict(role="system", content=static_message))
 
         # 2. Add dynamic blocks AFTER chat_files
         # These blocks change with the current files in context
-        pre_dynamic_blocks = []
-        post_dynamic_blocks = []
-        if context_summary and "context_summary" in self.allowed_context_blocks:
-            pre_dynamic_blocks.append(context_summary)
-        if symbol_outline and "symbol_outline" in self.allowed_context_blocks:
-            pre_dynamic_blocks.append(symbol_outline)
-        if git_status and "git_status" in self.allowed_context_blocks:
-            pre_dynamic_blocks.append(git_status)
+        pre_message_blocks = []
+        post_message_blocks = []
 
-        if todo_list and "todo_list" in self.allowed_context_blocks:
-            pre_dynamic_blocks.append(todo_list)
+        if "environment_info" in self.allowed_context_blocks:
+            block = self.get_cached_context_block("environment_info")
+            static_blocks.append(block)
+
+        if "directory_structure" in self.allowed_context_blocks:
+            block = self.get_cached_context_block("directory_structure")
+            static_blocks.append(block)
+
+        if "skills" in self.allowed_context_blocks:
+            block = self._generate_context_block("skills")
+            static_blocks.append(block)
+
+        if "symbol_outline" in self.allowed_context_blocks:
+            block = self.get_cached_context_block("symbol_outline")
+            pre_message_blocks.append(block)
+
+        if "git_status" in self.allowed_context_blocks:
+            block = self.get_cached_context_block("git_status")
+            pre_message_blocks.append(block)
+
+        if "todo_list" in self.allowed_context_blocks:
+            block = self.get_cached_context_block("todo_list")
+            pre_message_blocks.append(block)
+
+        if "skills" in self.allowed_context_blocks:
+            block = self._generate_context_block("loaded_skills")
+            pre_message_blocks.append(block)
+
+        if "context_summary" in self.allowed_context_blocks:
+            # Context summary needs special handling because it depends on other blocks
+            block = self.get_context_summary()
+            pre_message_blocks.insert(0, block)
+
         # Add tool usage context if there are repetitive tools
         if hasattr(self, "tool_usage_history") and self.tool_usage_history:
             repetitive_tools = self._get_repetitive_tools()
             if repetitive_tools:
                 tool_context = self._generate_tool_context(repetitive_tools)
                 if tool_context:
-                    post_dynamic_blocks.append(tool_context)
+                    post_message_blocks.append(tool_context)
 
-        if pre_dynamic_blocks:
-            dynamic_message = "\n\n".join(pre_dynamic_blocks)
-            # Append as a system message on reminders
-            chunks.done.insert(0, dict(role="system", content=dynamic_message))
+        if static_blocks:
+            for block in static_blocks:
+                if block:
+                    chunks.static.append(dict(role="system", content=block))
 
-        if post_dynamic_blocks:
-            dynamic_message = "\n\n".join(post_dynamic_blocks)
-            # Append as a system message on reminders
-            reminder_message.insert(0, dict(role="system", content=dynamic_message))
+        if pre_message_blocks:
+            for block in pre_message_blocks:
+                if block:
+                    chunks.pre_message.append(dict(role="system", content=block))
+
+        if post_message_blocks:
+            for block in post_message_blocks:
+                if block:
+                    chunks.post_message.append(dict(role="system", content=block))
 
         # Use accurate token counting method that considers enhanced context blocks
         base_messages = chunks.all_messages()
@@ -854,6 +936,9 @@ class AgentCoder(Coder):
                     + self.fmt_system_prompt(self.gpt_prompts.system_reminder)
                 )
                 chunks.cur[-1] = dict(role=final["role"], content=new_content)
+
+        if self.verbose:
+            self._log_chunks(chunks)
 
         return chunks
 
@@ -2273,6 +2358,38 @@ Just reply with fixed versions of the {blocks} above that failed to match.
             self.io.tool_error(f"Error generating todo list context: {str(e)}")
             return None
 
+    def get_skills_context(self):
+        """
+        Generate a context block for available skills.
+
+        Returns:
+            Formatted context block string or None if no skills available
+        """
+        if not self.use_enhanced_context or not self.skills_manager:
+            return None
+
+        try:
+            return self.skills_manager.get_skills_context()
+        except Exception as e:
+            self.io.tool_error(f"Error generating skills context: {str(e)}")
+            return None
+
+    def get_skills_content(self):
+        """
+        Generate a context block with the actual content of loaded skills.
+
+        Returns:
+            Formatted context block string with skill contents or None if no skills available
+        """
+        if not self.use_enhanced_context or not self.skills_manager:
+            return None
+
+        try:
+            return self.skills_manager.get_skills_content()
+        except Exception as e:
+            self.io.tool_error(f"Error generating skills content context: {str(e)}")
+            return None
+
     def get_git_status(self):
         """
         Generate a git status context block for repository information.
@@ -2416,3 +2533,46 @@ Just reply with fixed versions of the {blocks} above that failed to match.
             self.tokens_calculated = False
 
         return True
+
+    def _log_chunks(self, chunks):
+        try:
+            import hashlib
+            import json
+
+            if not hasattr(self, "_message_hashes"):
+                self._message_hashes = {
+                    "system": None,
+                    "static": None,
+                    "examples": None,
+                    "readonly_files": None,
+                    "repo": None,
+                    "chat_files": None,
+                    "pre_message": None,
+                    "done": None,
+                    "edit_files": None,
+                    "cur": None,
+                    "post_message": None,
+                    "reminder": None,
+                }
+
+            changes = []
+            for key, value in self._message_hashes.items():
+                json_obj = json.dumps(
+                    getattr(chunks, key, ""), sort_keys=True, separators=(",", ":")
+                )
+                new_hash = hashlib.sha256(json_obj.encode("utf-8")).hexdigest()
+                if self._message_hashes[key] != new_hash:
+                    changes.append(key)
+
+                self._message_hashes[key] = new_hash
+
+            print("")
+            print("MESSAGE CHUNK HASHES")
+            print(self._message_hashes)
+            print("")
+            print(changes)
+            print("")
+
+        except Exception as e:
+            print(e)
+            pass

@@ -19,6 +19,7 @@ LLMs are a part of our lives from here on out so join us in learning about and c
 * [Agent Mode](https://github.com/dwash96/aider-ce/blob/main/aider/website/docs/config/agent-mode.md)
 * [MCP Configuration](https://github.com/dwash96/aider-ce/blob/main/aider/website/docs/config/mcp.md)
 * [Session Management](https://github.com/dwash96/aider-ce/blob/main/aider/website/docs/sessions.md)
+* [Skills](https://github.com/dwash96/aider-ce/blob/main/aider/website/docs/config/skills.md)
 * [Aider Original Documentation (still mostly applies)](https://aider.chat/)
 
 You can see a selection of the enhancements and updates by comparing the help output:
@@ -134,7 +135,7 @@ The current priorities are to improve core capabilities and user experience of t
   * [ ] Add a RAG tool for the model to ask questions about the codebase
   * [ ] Make the system prompts more aggressive about removing unneeded files/content from the context
   * [ ] Add a plugin-like system for allowing agent mode to use user-defined tools in simple python files
-  * [ ] Add a dynamic tool discovery tool to allow the system to have only the tools it needs in context
+  * [x] Add a dynamic tool discovery tool to allow the system to have only the tools it needs in context
 
 ### All Contributors (Both Aider Main and Aider-CE)
 

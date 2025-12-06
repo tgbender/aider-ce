@@ -5,13 +5,16 @@ from typing import List
 @dataclass
 class ChatChunks:
     system: List = field(default_factory=list)
+    static: List = field(default_factory=list)
     examples: List = field(default_factory=list)
+    pre_message: List = field(default_factory=list)
     done: List = field(default_factory=list)
     repo: List = field(default_factory=list)
     readonly_files: List = field(default_factory=list)
     chat_files: List = field(default_factory=list)
     edit_files: List = field(default_factory=list)
     cur: List = field(default_factory=list)
+    post_message: List = field(default_factory=list)
     reminder: List = field(default_factory=list)
     chunk_ordering: List = field(default_factory=list)
 
@@ -29,13 +32,16 @@ class ChatChunks:
         else:
             return (
                 self.format_list(self.system)
+                + self.format_list(self.static)
                 + self.format_list(self.examples)
                 + self.format_list(self.readonly_files)
                 + self.format_list(self.chat_files)
                 + self.format_list(self.repo)
+                + self.format_list(self.pre_message)
                 + self.format_list(self.done)
                 + self.format_list(self.edit_files)
                 + self.format_list(self.cur)
+                + self.format_list(self.post_message)
                 + self.format_list(self.reminder)
             )
 

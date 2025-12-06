@@ -2155,6 +2155,90 @@ class Commands:
         session_manager = sessions.SessionManager(self.coder, self.io)
         session_manager.load_session(args.strip())
 
+    def cmd_load_skill(self, args):
+        """Load a skill by name (agent mode only)"""
+        if not args.strip():
+            self.io.tool_output("Usage: /load-skill <skill-name>")
+            return
+
+        skill_name = args.strip()
+
+        # Check if we're in agent mode
+        if not hasattr(self.coder, "edit_format") or self.coder.edit_format != "agent":
+            self.io.tool_output("Skill loading is only available in agent mode.")
+            return
+
+        # Check if skills_manager is available
+        if not hasattr(self.coder, "skills_manager") or self.coder.skills_manager is None:
+            self.io.tool_output("Skills manager is not initialized. Skills may not be configured.")
+            # Check if skills directories are configured
+            if (
+                hasattr(self.coder, "skills_directory_paths")
+                and not self.coder.skills_directory_paths
+            ):
+                self.io.tool_output(
+                    "No skills directories configured. Use --skills-paths to configure skill"
+                    " directories."
+                )
+            return
+
+        # Use the instance method on skills_manager
+        result = self.coder.skills_manager.load_skill(skill_name)
+        self.io.tool_output(result)
+
+    def cmd_remove_skill(self, args):
+        """Remove a skill by name (agent mode only)"""
+        if not args.strip():
+            self.io.tool_output("Usage: /remove-skill <skill-name>")
+            return
+
+        skill_name = args.strip()
+
+        # Check if we're in agent mode
+        if not hasattr(self.coder, "edit_format") or self.coder.edit_format != "agent":
+            self.io.tool_output("Skill removal is only available in agent mode.")
+            return
+
+        # Check if skills_manager is available
+        if not hasattr(self.coder, "skills_manager") or self.coder.skills_manager is None:
+            self.io.tool_output("Skills manager is not initialized. Skills may not be configured.")
+            # Check if skills directories are configured
+            if (
+                hasattr(self.coder, "skills_directory_paths")
+                and not self.coder.skills_directory_paths
+            ):
+                self.io.tool_output(
+                    "No skills directories configured. Use --skills-paths to configure skill"
+                    " directories."
+                )
+            return
+
+        # Use the instance method on skills_manager
+        result = self.coder.skills_manager.remove_skill(skill_name)
+        self.io.tool_output(result)
+
+    def completions_load_skill(self):
+        """Return available skill names for completion"""
+        if not hasattr(self.coder, "skills_manager") or self.coder.skills_manager is None:
+            return []
+
+        try:
+            skills = self.coder.skills_manager.find_skills()
+            return [skill.name for skill in skills]
+        except Exception:
+            return []
+
+    def completions_remove_skill(self):
+        """Return currently loaded skill names for completion"""
+        if not hasattr(self.coder, "skills_manager") or self.coder.skills_manager is None:
+            return []
+
+        try:
+            skills = self.coder.skills_manager.find_skills()
+            return [skill.name for skill in skills]
+        except Exception:
+            return []
+
     def cmd_command_prefix(self, args=""):
         """Change Command Prefix For All Running Commands"""
         if not args.strip():
