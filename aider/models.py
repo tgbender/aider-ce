@@ -977,22 +977,6 @@ class Model(ModelSettings):
             dump(kwargs)
         kwargs["messages"] = messages
 
-        # Per this: https://github.com/BerriAI/litellm/issues/10226
-        # The first and second to last messages are cache optimal
-        # Since caches are also written to incrementally and you need
-        # the past and current states to properly append and gain
-        # efficiencies/savings in cache writing
-        kwargs["cache_control_injection_points"] = [
-            {
-                "location": "message",
-                "index": -1,
-            },
-            {
-                "location": "message",
-                "index": -2,
-            },
-        ]
-
         # Are we using github copilot?
         if "GITHUB_COPILOT_TOKEN" in os.environ or self.name.startswith("github_copilot/"):
             if "extra_headers" not in kwargs:
