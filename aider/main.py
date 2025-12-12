@@ -1,3 +1,13 @@
+import os
+
+try:
+    if not os.environ["CECLI_DEFAULT_TLS"] or os.environ["AIDER_CE_DEFAULT_TLS"]:
+        import truststore
+
+        truststore.inject_into_ssl()
+except Exception:
+    pass
+
 import asyncio
 import glob
 import json
@@ -10,8 +20,6 @@ import traceback
 import webbrowser
 from dataclasses import fields
 from pathlib import Path
-
-import truststore
 
 try:
     import git
@@ -542,9 +550,6 @@ async def main_async(argv=None, input=None, output=None, force_git_root=None, re
                 return await graceful_exit(None, 1)
         raise e
 
-    if args.native_tls:
-        truststore.inject_into_ssl()
-
     if args.verbose:
         print("Config files search order, if no --config:")
         for file in default_config_files:
@@ -561,8 +566,11 @@ async def main_async(argv=None, input=None, output=None, force_git_root=None, re
     loaded_dotenvs = load_dotenv_files(git_root, args.env_file, args.encoding)
 
     # Parse again to include any arguments that might have been defined in .env
-    args = parser.parse_args(argv)
+    args, unknown = parser.parse_known_args(argv)
     set_args_error_data(args)
+
+    if len(unknown):
+        print("Unknown Args: ", unknown)
 
     # Convert YAML dict arguments to JSON strings for compatibility
     # configargparse.YAMLConfigFileParser converts YAML to Python objects,

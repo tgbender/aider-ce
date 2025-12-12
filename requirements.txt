@@ -25,10 +25,6 @@ anyio==4.11.0
     #   sse-starlette
     #   starlette
     #   watchfiles
-asgiref==3.11.0
-    # via
-    #   -c requirements/common-constraints.txt
-    #   mixpanel
 attrs==25.4.0
     # via
     #   -c requirements/common-constraints.txt
@@ -39,7 +35,6 @@ backoff==2.2.1
     # via
     #   -c requirements/common-constraints.txt
     #   -r requirements/requirements.in
-    #   posthog
 beautifulsoup4==4.14.2
     # via
     #   -c requirements/common-constraints.txt
@@ -89,7 +84,6 @@ distro==1.9.0
     # via
     #   -c requirements/common-constraints.txt
     #   openai
-    #   posthog
 fastuuid==0.14.0
     # via
     #   -c requirements/common-constraints.txt
@@ -190,7 +184,6 @@ httpx==0.28.1
     #   -c requirements/common-constraints.txt
     #   litellm
     #   mcp
-    #   mixpanel
     #   openai
 httpx-sse==0.4.3
     # via
@@ -262,10 +255,6 @@ mdurl==0.1.2
     # via
     #   -c requirements/common-constraints.txt
     #   markdown-it-py
-mixpanel==5.0.0
-    # via
-    #   -c requirements/common-constraints.txt
-    #   -r requirements/requirements.in
 mslex==1.3.0
     # via
     #   -c requirements/common-constraints.txt
@@ -307,10 +296,6 @@ pexpect==4.9.0
     #   -c requirements/common-constraints.txt
     #   -r requirements/requirements.in
 pillow==12.0.0
-    # via
-    #   -c requirements/common-constraints.txt
-    #   -r requirements/requirements.in
-posthog==7.0.1
     # via
     #   -c requirements/common-constraints.txt
     #   -r requirements/requirements.in
@@ -368,7 +353,6 @@ pydantic==2.12.4
     #   google-generativeai
     #   litellm
     #   mcp
-    #   mixpanel
     #   openai
     #   pydantic-settings
 pydantic-core==2.41.5
@@ -407,10 +391,6 @@ pyperclip==1.11.0
     # via
     #   -c requirements/common-constraints.txt
     #   -r requirements/requirements.in
-python-dateutil==2.9.0.post0
-    # via
-    #   -c requirements/common-constraints.txt
-    #   posthog
 python-dotenv==1.2.1
     # via
     #   -c requirements/common-constraints.txt
@@ -439,8 +419,6 @@ requests==2.32.5
     #   -c requirements/common-constraints.txt
     #   google-api-core
     #   huggingface-hub
-    #   mixpanel
-    #   posthog
     #   tiktoken
 rich==14.2.0
     # via
@@ -463,11 +441,6 @@ shtab==1.8.0
     # via
     #   -c requirements/common-constraints.txt
     #   -r requirements/requirements.in
-six==1.17.0
-    # via
-    #   -c requirements/common-constraints.txt
-    #   posthog
-    #   python-dateutil
 smmap==5.0.2
     # via
     #   -c requirements/common-constraints.txt
@@ -535,6 +508,10 @@ tree-sitter-yaml==0.7.2
     # via
     #   -c requirements/common-constraints.txt
     #   tree-sitter-language-pack
+truststore==0.10.4
+    # via
+    #   -c requirements/common-constraints.txt
+    #   -r requirements/requirements.in
 typing-extensions==4.15.0
     # via
     #   -c requirements/common-constraints.txt
@@ -546,7 +523,6 @@ typing-extensions==4.15.0
     #   huggingface-hub
     #   mcp
     #   openai
-    #   posthog
     #   pydantic
     #   pydantic-core
     #   referencing

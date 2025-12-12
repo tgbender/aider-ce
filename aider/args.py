@@ -78,22 +78,6 @@ def get_parser(default_config_files, git_root):
         help="Specify the api base url",
     )
     group.add_argument(
-        "--openai-api-type",
-        help="(deprecated, use --set-env OPENAI_API_TYPE=<value>)",
-    )
-    group.add_argument(
-        "--openai-api-version",
-        help="(deprecated, use --set-env OPENAI_API_VERSION=<value>)",
-    )
-    group.add_argument(
-        "--openai-api-deployment-id",
-        help="(deprecated, use --set-env OPENAI_API_DEPLOYMENT_ID=<value>)",
-    )
-    group.add_argument(
-        "--openai-organization-id",
-        help="(deprecated, use --set-env OPENAI_ORGANIZATION=<value>)",
-    )
-    group.add_argument(
         "--set-env",
         action="append",
         metavar="ENV_VAR_NAME=value",
@@ -153,12 +137,6 @@ def get_parser(default_config_files, git_root):
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Verify the SSL cert when connecting to models (default: True)",
-    )
-    group.add_argument(
-        "--native-tls",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Use system defined ssl certificates, instead of python's defaults (Default: True)",
     )
     group.add_argument(
         "--timeout",
@@ -685,36 +663,6 @@ def get_parser(default_config_files, git_root):
         action="store_true",
         help="Run tests, fix problems found and then exit",
         default=False,
-    )
-
-    ##########
-    group = parser.add_argument_group("Analytics")
-    group.add_argument(
-        "--analytics",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help=argparse.SUPPRESS,
-    )
-    group.add_argument(
-        "--analytics-log",
-        metavar="ANALYTICS_LOG_FILE",
-        help=argparse.SUPPRESS,
-    ).complete = shtab.FILE
-    group.add_argument(
-        "--analytics-disable",
-        action="store_true",
-        help=argparse.SUPPRESS,
-        default=False,
-    )
-    group.add_argument(
-        "--analytics-posthog-host",
-        metavar="ANALYTICS_POSTHOG_HOST",
-        help=argparse.SUPPRESS,
-    )
-    group.add_argument(
-        "--analytics-posthog-project-api-key",
-        metavar="ANALYTICS_POSTHOG_PROJECT_API_KEY",
-        help=argparse.SUPPRESS,
     )
 
     #########
