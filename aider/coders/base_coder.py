@@ -1351,8 +1351,11 @@ class Coder:
                     try:
                         user_message = self.io.input_task.result()
 
+                        # Defer to confirmation handler to fix Windows event loop race.
+                        if self.io.confirmation_in_progress:
+                            pass
                         # Set user message for output task
-                        if not self.io.acknowledge_confirmation():
+                        elif not self.io.acknowledge_confirmation():
                             if user_message:
                                 self.user_message = user_message
                                 await self.auto_save_session()
