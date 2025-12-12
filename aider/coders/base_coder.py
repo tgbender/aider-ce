@@ -183,6 +183,9 @@ class Coder:
             io = from_coder.io
 
         if from_coder:
+            if not args:
+                args = from_coder.args
+
             use_kwargs = dict(from_coder.original_kwargs)  # copy orig kwargs
 
             # If the edit format changes, we can't leave old ASSISTANT
