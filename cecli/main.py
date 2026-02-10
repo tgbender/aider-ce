@@ -10,6 +10,7 @@ try:
 except Exception as e:
     print(e)
     pass
+
 import asyncio
 import json
 import os
@@ -36,6 +37,7 @@ if sys.platform == "win32":
 from prompt_toolkit.enums import EditingMode
 
 from cecli import __version__, models, urls, utils
+from cecli.secrets import get_secret, has_keyring, get_keyring_backend
 from cecli.args import get_parser
 from cecli.coders import Coder
 from cecli.coders.base_coder import UnknownEditFormat
@@ -754,6 +756,28 @@ async def main_async(argv=None, input=None, output=None, force_git_root=None, re
     await check_and_load_imports(io, is_first_run, verbose=args.verbose)
     register_models(git_root, args.model_settings_file, io, verbose=args.verbose)
     register_litellm_models(git_root, args.model_metadata_file, io, verbose=args.verbose)
+    # Eagerly load all keyring secrets before Model instantiation
+    if has_keyring():
+        # Discover all api_key_env values from model settings
+        api_key_envs = set()
+        for ms in models.MODEL_SETTINGS:
+            if ms.api_key_env:
+                api_key_envs.add(ms.api_key_env)
+
+        # Load from keyring into os.environ
+        loaded = []
+        for env_var in api_key_envs:
+            secret = get_secret(env_var)
+            if secret:
+                os.environ[env_var] = secret
+                loaded.append(env_var)
+
+        if args.verbose:
+            if loaded:
+                io.tool_output(f"Keyring ({get_keyring_backend()}): loaded {len(loaded)} secrets")
+            else:
+                io.tool_output(f"Keyring ({get_keyring_backend()}): no secrets found")
+
     if args.list_models:
         models.print_matching_models(io, args.list_models)
         return await graceful_exit(None)

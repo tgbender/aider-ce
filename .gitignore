@@ -30,6 +30,7 @@
 !/pytest.ini
 !/README.md
 !/requirements.txt
+!/plans/*
 
 # Ignore specific files
 .aider*
@@ -40,3 +41,4 @@ cecli/__version__.py
 cecli/_version.py
 *.pyc
 env/
+

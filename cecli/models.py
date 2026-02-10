@@ -6,6 +6,7 @@ import json
 import math
 import os
 import platform
+import re
 import sys
 import time
 from dataclasses import dataclass, fields
@@ -22,6 +23,7 @@ from cecli.helpers.model_providers import ModelProviderManager
 from cecli.helpers.requests import model_request_parser
 from cecli.llm import litellm
 from cecli.sendchat import sanity_check_messages
+from cecli.secrets import get_secret
 from cecli.utils import check_pip_install_extra
 
 RETRY_TIMEOUT = 60
@@ -120,6 +122,8 @@ class ModelSettings:
     remove_reasoning: Optional[str] = None
     system_prompt_prefix: Optional[str] = None
     accepts_settings: Optional[list] = None
+    api_key_env: Optional[str] = None
+    api_base: Optional[str] = None
 
 
 MODEL_SETTINGS = []
@@ -711,6 +715,19 @@ class Model(ModelSettings):
                     return dict(keys_in_environment=[env_var], missing_keys=[])
 
     def validate_environment(self):
+        # Check for api_key_env in model settings (keyring-first)
+        if self.api_key_env:
+            api_key = get_secret(self.api_key_env)
+            if api_key:
+                # Inject into env for litellm compatibility
+                os.environ[self.api_key_env] = api_key
+                return dict(keys_in_environment=[self.api_key_env], missing_keys=[])
+            else:
+                return dict(
+                    keys_in_environment=False,
+                    missing_keys=[self.api_key_env]
+                )
+
         res = self.fast_validate_environment()
         if res:
             return res
@@ -748,6 +765,28 @@ class Model(ModelSettings):
         if provider == "groq":
             return validate_variables(["GROQ_API_KEY"])
         return res
+
+    def _resolve_api_base(self, api_base_template: str) -> Optional[str]:
+        """Resolve API base URL with ${ENV_VAR} substitution."""
+        if not api_base_template:
+            return None
+
+        # Pattern: ${ENV_VAR} or ${ENV_VAR:-default}
+        pattern = r'\$\{(\w+)(?::-([^}]*))?\}'
+
+        def replace(match):
+            env_var = match.group(1)
+            default = match.group(2)
+
+            # Try keyring first, then env
+            value = get_secret(env_var)
+            if value:
+                return value
+            if default:
+                return default
+            return ""
+
+        return re.sub(pattern, replace, api_base_template)
 
     def get_repo_map_tokens(self):
         map_tokens = 1024
@@ -924,10 +963,29 @@ class Model(ModelSettings):
                     kwargs["tool_choice"] = {"type": "function", "function": {"name": tool_name}}
         if self.extra_params:
             kwargs.update(self.extra_params)
+
+        # Inject api_key and base_url from model settings (keyring-first)
+        if self.api_key_env:
+            api_key = get_secret(self.api_key_env)
+            if api_key:
+                kwargs["api_key"] = api_key
+
+        if self.api_base:
+            base_url = self._resolve_api_base(self.api_base)
+            if base_url:
+                kwargs["base_url"] = base_url
+
         if max_tokens:
             kwargs["max_tokens"] = max_tokens
         if "max_tokens" in kwargs and kwargs["max_tokens"]:
             kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+        if stream:
+            # Request provider-side usage in streaming chunks for all providers.
+            # Respect an explicit caller override for include_usage.
+            stream_options = kwargs.get("stream_options") or {}
+            if "include_usage" not in stream_options:
+                stream_options["include_usage"] = True
+            kwargs["stream_options"] = stream_options
         if self.is_ollama() and "num_ctx" not in kwargs:
             num_ctx = int(self.token_count(messages) * 1.25) + 8192
             kwargs["num_ctx"] = num_ctx

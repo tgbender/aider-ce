@@ -63,6 +63,14 @@ from cecli.utils import format_tokens, is_image_file
 from ..dump import dump  # noqa: F401
 from ..prompts.utils.registry import PromptObject, PromptRegistry
 from .chat_chunks import ChatChunks
+from ._internal import (
+    OrderedSet,
+    calculate_cost_breakdown,
+    calculate_message_costs,
+    extract_usage_from_completion,
+    format_cost_report,
+    format_token_report,
+)
 
 
 class UnknownEditFormat(ValueError):
@@ -381,8 +389,9 @@ class Coder:
             enable_printing=getattr(args, "show_speed", False) if args else False
         )
         self.verbose = verbose
-        self.abs_fnames = set()
+        self.abs_fnames = OrderedSet()
         self.abs_read_only_fnames = set()
+        self._last_completion_usage = None
         self.add_gitignore_files = add_gitignore_files
         self.abs_read_only_stubs_fnames = set()
 
@@ -775,7 +784,7 @@ class Coder:
         for fname in deleted_fnames:
             relative_fname = self.get_rel_fname(fname)
             self.io.tool_warning(f"Dropping {relative_fname} from the chat (file was deleted).")
-            self.abs_fnames.remove(fname)
+            self.abs_fnames.discard(fname)
 
         # Sort files by last modified time (earliest first, latest last)
         sorted_fnames = sorted(
@@ -789,7 +798,7 @@ class Coder:
             if content is None:
                 relative_fname = self.get_rel_fname(fname)
                 self.io.tool_warning(f"Dropping {relative_fname} from the chat.")
-                self.abs_fnames.remove(fname)
+                self.abs_fnames.discard(fname)
             else:
                 yield fname, content
 
@@ -3023,6 +3032,9 @@ class Coder:
         if not model:
             model = self.main_model
 
+        # Reset last completion usage for this request (used for streaming)
+        self._last_completion_usage = None
+
         self.partial_response_content = ""
         self.partial_response_reasoning_content = ""
         self.partial_response_chunks = []
@@ -3135,6 +3147,11 @@ class Coder:
                 self.io.tool_error(chunk)
                 continue
             else:
+                # Capture usage from streaming chunks (final chunk usually carries it)
+                usage = getattr(chunk, "usage", None)
+                if usage:
+                    self._last_completion_usage = usage
+
                 if len(chunk.choices) == 0:
                     continue
 
@@ -3413,41 +3430,33 @@ class Coder:
         )
 
     def calculate_and_show_tokens_and_cost(self, messages, completion=None):
-        prompt_tokens = 0
-        completion_tokens = 0
-        cache_hit_tokens = 0
-        cache_write_tokens = 0
+        """Calculate and display token usage and costs with detailed breakdown."""
+        # Extract usage from completion or streaming data
+        usage = extract_usage_from_completion(completion, self._last_completion_usage)
 
-        if completion and hasattr(completion, "usage") and completion.usage is not None:
-            prompt_tokens = completion.usage.prompt_tokens
-            completion_tokens = completion.usage.completion_tokens
-            cache_hit_tokens = getattr(completion.usage, "prompt_cache_hit_tokens", 0) or getattr(
-                completion.usage, "cache_read_input_tokens", 0
-            )
-            cache_write_tokens = getattr(completion.usage, "cache_creation_input_tokens", 0)
+        # Calculate all message costs using the internal module
+        cost_data = calculate_message_costs(
+            usage=usage,
+            model_info=self.main_model.info,
+            model_name=getattr(self.main_model, "name", ""),
+            partial_response_content=self.partial_response_content,
+            messages=messages,
+            token_counter=self.main_model.token_count,
+        )
 
-            if hasattr(completion.usage, "cache_read_input_tokens") or hasattr(
-                completion.usage, "cache_creation_input_tokens"
-            ):
-                self.message_tokens_sent += prompt_tokens
-                self.message_tokens_sent += cache_write_tokens
-            else:
-                self.message_tokens_sent += prompt_tokens
+        # Update instance variables
+        self.message_tokens_sent += cost_data["message_tokens_sent"]
+        self.message_tokens_received += cost_data["message_tokens_received"]
 
-        else:
-            prompt_tokens = self.main_model.token_count(messages)
-            completion_tokens = self.main_model.token_count(self.partial_response_content)
-            self.message_tokens_sent += prompt_tokens
-
-        self.message_tokens_received += completion_tokens
-
-        tokens_report = f"Tokens: {format_tokens(self.message_tokens_sent)} sent"
-
-        if cache_write_tokens:
-            tokens_report += f", {format_tokens(cache_write_tokens)} cache write"
-        if cache_hit_tokens:
-            tokens_report += f", {format_tokens(cache_hit_tokens)} cache hit"
-        tokens_report += f", {format_tokens(self.message_tokens_received)} received."
+        # Format token report with thinking token breakdown
+        tokens_report = format_token_report(
+            message_tokens_sent=self.message_tokens_sent,
+            message_tokens_received=self.message_tokens_received,
+            cache_write_tokens=cost_data["cache_write_tokens"],
+            cache_hit_tokens=cost_data["cache_hit_tokens"],
+            completion_tokens=cost_data["completion_tokens"],
+            thinking_tokens=cost_data["thinking_tokens"],
+        )
         tokens_report = self.token_profiler.add_to_usage_report(
             tokens_report, self.message_tokens_sent, self.message_tokens_received
         )
@@ -3456,31 +3465,45 @@ class Coder:
             self.usage_report = tokens_report
             return
 
+        # Try litellm's cost calculator first
         try:
-            # Try and use litellm's built in cost calculator. Seems to work for non-streaming only?
             cost = litellm.completion_cost(completion_response=completion)
         except Exception:
             cost = 0
 
+        # Fall back to our detailed cost calculator
         if not cost:
-            cost = self.compute_costs_from_tokens(
-                prompt_tokens, completion_tokens, cache_write_tokens, cache_hit_tokens
+            cost_breakdown = calculate_cost_breakdown(
+                prompt_tokens=cost_data["prompt_tokens"],
+                completion_tokens=cost_data["completion_tokens"],
+                cache_hit_tokens=cost_data["cache_hit_tokens"],
+                cache_write_tokens=cost_data["cache_write_tokens"],
+                model_info=self.main_model.info,
+                model_name=getattr(self.main_model, "name", ""),
+                usage_format=cost_data.get("_usage_format", "unknown"),
             )
+            cost = cost_breakdown["total_cost"]
+        else:
+            # Create a simple breakdown when using litellm cost
+            cost_breakdown = {
+                "input_cost": 0,
+                "output_cost": 0,
+                "cache_read_cost": 0,
+                "cache_write_cost": 0,
+            }
 
         self.total_cost += cost
         self.message_cost += cost
 
-        cost_report = (
-            f"Cost: ${self.format_cost(self.message_cost)} message,"
-            f" ${self.format_cost(self.total_cost)} session."
+        # Format cost report with detailed breakdown
+        cost_report = format_cost_report(
+            message_cost=self.message_cost,
+            total_cost=self.total_cost,
+            cost_breakdown=cost_breakdown,
         )
 
-        if cache_hit_tokens and cache_write_tokens:
-            sep = "\n"
-        else:
-            sep = " "
-
-        self.usage_report = tokens_report + sep + cost_report
+        # Always show as two lines: first Tokens:, then Cost:
+        self.usage_report = tokens_report + "\n" + cost_report
 
     def format_cost(self, value):
         if value == 0:
@@ -3492,36 +3515,25 @@ class Coder:
             return f"{value:.{max(2, 2 - int(math.log10(magnitude)))}f}"
 
     def compute_costs_from_tokens(
-        self, prompt_tokens, completion_tokens, cache_write_tokens, cache_hit_tokens
+        self, prompt_tokens, completion_tokens, cache_write_tokens, cache_hit_tokens,
+        usage_format="unknown"
     ):
-        cost = 0
+        """Compute costs using the internal cost calculator.
 
-        input_cost_per_token = self.main_model.info.get("input_cost_per_token") or 0
-        output_cost_per_token = self.main_model.info.get("output_cost_per_token") or 0
-        input_cost_per_token_cache_hit = (
-            self.main_model.info.get("input_cost_per_token_cache_hit") or 0
+        This method is kept for backwards compatibility but delegates to
+        the internal cost_calculator module.
+        """
+        from ._internal import compute_total_cost
+
+        return compute_total_cost(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cache_write_tokens=cache_write_tokens,
+            cache_hit_tokens=cache_hit_tokens,
+            model_info=self.main_model.info,
+            model_name=getattr(self.main_model, "name", ""),
+            usage_format=usage_format,
         )
-
-        # deepseek
-        # prompt_cache_hit_tokens + prompt_cache_miss_tokens
-        #    == prompt_tokens == total tokens that were sent
-        #
-        # Anthropic
-        # cache_creation_input_tokens + cache_read_input_tokens + prompt
-        #    == total tokens that were
-
-        if input_cost_per_token_cache_hit:
-            # must be deepseek
-            cost += input_cost_per_token_cache_hit * cache_hit_tokens
-            cost += (prompt_tokens - input_cost_per_token_cache_hit) * input_cost_per_token
-        else:
-            # hard code the anthropic adjustments, no-ops for other models since cache_x_tokens==0
-            cost += cache_write_tokens * input_cost_per_token * 1.25
-            cost += cache_hit_tokens * input_cost_per_token * 0.10
-            cost += prompt_tokens * input_cost_per_token
-
-        cost += completion_tokens * output_cost_per_token
-        return cost
 
     def show_usage_report(self):
         if not self.usage_report:
@@ -3774,6 +3786,13 @@ class Coder:
                 self.io.tool_output(f"Did not apply edit to {path} (--dry-run)")
             else:
                 self.io.tool_output(f"Applied edit to {path}")
+
+            # Move edited files to the end of the in-chat files list so that
+            # frequently edited ("hot") files appear later in the prompt.
+            if path:
+                abs_path = self.abs_root_path(path)
+                if abs_path in self.abs_fnames:
+                    self.abs_fnames.touch(abs_path)
 
         return edited
 
